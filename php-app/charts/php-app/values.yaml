@@ -1,0 +1,94 @@
+
+replicaCount: 3
+
+image:
+  repository: "{THIS IS FILLED IN WITH .env file currently}"
+  pullPolicy: IfNotPresent
+  tag: "0.0.1"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Create postgres CR so postgres-operator will create a postgres endpoint
+# The postgres user secret is passed in as an environment variable
+postgresql_db:
+  name: acid-minimal-cluster
+  user: appuser
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  
+resources: 
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+livenessProbe:
+  tcpSocket:
+    port: 8000
+  initialDelaySeconds: 180
+  periodSeconds: 10
+readinessProbe:
+  tcpSocket:
+    port: 8000
+  initialDelaySeconds: 180
+  periodSeconds: 10
+
+#This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# Additional volumes on the output Deployment definition.
+volumes:
+  - name: emptydir-cache
+    emptyDir:
+      sizeLimit: 500Mi
+  - name: emptydir-log
+    emptyDir:
+      sizeLimit: 500Mi
+volumeMounts:
+  - name: emptydir-cache
+    mountPath: /symfony/php-app/var/cache
+    readOnly: false
+  - name: emptydir-log
+    mountPath: /symfony/php-app/var/log
+    readOnly: false
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

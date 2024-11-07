@@ -1,0 +1,53 @@
+name: CI-terraform-kubernetes
+
+on:
+  push:
+    branches: [ "main" ]
+    paths: 
+     - terraform/kubernetes/**
+
+  workflow_dispatch:
+
+jobs:
+  create-k8s:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 16.13.1
+      - uses: hashicorp/setup-terraform@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_DEFAULT_REGION }}
+
+      - name: Terraform fmt kubernetes
+        id: fmt-kubernetes
+        run: terraform fmt --check
+        continue-on-error: true
+        working-directory: terraform/kubernetes
+        
+      - name: Terraform init kubernetes
+        id: init-kubernetes
+        run: terraform init --upgrade
+        working-directory: terraform/kubernetes
+      
+      - name: Terraform validate kubernetes
+        id: validate-kubernetes
+        run: terraform validate -no-color
+        working-directory: terraform/kubernetes
+        
+      - name: Terraform apply kubernetes
+        id: apply-kubernetes
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: terraform apply -auto-approve
+        working-directory: terraform/kubernetes
+        

@@ -1,0 +1,54 @@
+name: CI-terraform-kubernetes-config
+
+on:
+  push:
+    branches: [ "main" ]
+    paths: 
+     - terraform/kubernetes-config/**
+
+  workflow_dispatch:
+
+jobs:
+  configure-k8s:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 16.13.1
+      - uses: hashicorp/setup-terraform@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_DEFAULT_REGION }}
+
+      - name: Terraform fmt kubernetes-config
+        id: fmt-kubernetes-config
+        run: Terraform fmt --check
+        continue-on-error: true
+        working-directory: terraform/kubernetes-config
+        
+      - name: Terraform init kubernetes-config
+        id: init-kubernetes-config
+        run: terraform init --upgrade
+        working-directory: terraform/kubernetes-config
+      
+      - name: Terraform validate kubernetes-config
+        id: validate-kubernetes-config
+        run: terraform validate -no-color
+        working-directory: terraform/kubernetes-config
+        
+      - name: Terraform apply kubernetes-config
+        id: apply-kubernetes-config
+        run: terraform apply -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          TF_VAR_CF_API_EMAIL: ${{ secrets.TF_VAR_CF_API_EMAIL }}
+          TF_VAR_CF_API_TOKEN: ${{ secrets.TF_VAR_CF_API_TOKEN }}
+        working-directory: terraform/kubernetes-config
