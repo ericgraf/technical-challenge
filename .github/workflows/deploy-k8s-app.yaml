@@ -24,7 +24,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - uses: yokawasa/action-setup-kube-tools@v0.11.1
+      - uses: yokawasa/action-setup-kube-tools@v0.11.2
       
       - name: Generate merged env file
         id: env-set
