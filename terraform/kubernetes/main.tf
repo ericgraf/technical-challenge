@@ -20,7 +20,7 @@ resource "random_string" "suffix" {
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "5.8.1"
+  version = "5.15.0"
 
   #TODO change this to source from ENV to support dev and prod
   name = "${var.cluster_name}-vpc"
