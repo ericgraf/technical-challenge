@@ -169,7 +169,7 @@ resource "helm_release" "postgres-operator" {
   ]
 }
 
-#Optional not required but helpful for generating Postgres create_namespace
+#Optional not required but helpful for generating Postgres CRs
 # https://github.com/zalando/postgres-operator/blob/master/docs/operator-ui.md
 
 resource "helm_release" "postgres-operator-ui" {
