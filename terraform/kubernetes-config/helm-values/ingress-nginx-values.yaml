@@ -1,0 +1,6 @@
+#https://github.com/kubernetes/ingress-nginx/blob/main/charts/ingress-nginx/values.yaml
+replicaCount: 1
+controller:
+  service:
+    annotations: 
+      external-dns.alpha.kubernetes.io/hostname: "*.<example.com>"
