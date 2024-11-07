@@ -1,0 +1,114 @@
+name: deploy-k8s-app
+
+on:
+  pull_request:
+    branches-ignore:
+      - renovate/*
+  push:
+    paths: 
+     - php-app/**
+
+  workflow_dispatch:
+
+jobs:
+  build-deploy:
+    runs-on: self-hosted
+    
+    steps:
+      - uses: actions/checkout@v4    
+      
+      # OPTIONAL useful for building other target platforms
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - uses: yokawasa/action-setup-kube-tools@v0.11.1
+      
+      - name: Generate merged env file
+        id: env-set
+        run: |
+          env1=${GITHUB_WORKSPACE}/.github/env/defaults
+          env2=${GITHUB_WORKSPACE}/.github/env/${GITHUB_REF//\//-}
+          
+          # If present set branch overrides
+          if [ -d "${env2}" ]; then
+            echo "Branch specific override values found."
+            # Merge the two env files
+            sort -u -t '=' -k 1,1 "${env1}/.env" "${env2}/.env" > ${GITHUB_WORKSPACE}/.env.merged
+            values_file=${env2}/values.yaml
+          else
+            cat "${env1}/.env" > ${GITHUB_WORKSPACE}/.env.merged
+            values_file=${env1}/values.yaml
+          fi
+
+          echo "BRANCH=${GITHUB_REF//\//-}" >> ${GITHUB_WORKSPACE}/.env.merged
+          echo "values_files=${values_file}" >> ${GITHUB_WORKSPACE}/.env.merged
+          echo "values_files=${values_file}" >> "$GITHUB_OUTPUT"
+
+      - name: Load .env file
+        uses: xom9ikk/dotenv@v2.3.0
+        with:
+          path: ./
+          mode: merged
+          load-mode: strict
+
+      - uses: nowactions/envsubst@v1
+        with:
+          input: ${{ steps.env-set.outputs.values_files }}
+          output: ./values.yaml
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_DEFAULT_REGION }}
+
+      - name: kubeconfig
+        run: |
+            aws eks update-kubeconfig --name k8s-prod --region us-east-2  --kubeconfig ./kubeconfig
+            echo 'KUBE_CONFIG_DATA<<EOF' >> $GITHUB_ENV
+            echo $(cat ./kubeconfig | base64) >> $GITHUB_ENV
+            echo 'EOF' >> $GITHUB_ENV
+  
+      - name: buildx-docker
+        working-directory: php-app/php-src
+        env:
+            KUBE_CONFIG_DATA: ${{ env.KUBE_CONFIG_DATA }}
+        run: |
+
+          image="${OCI_REGISTRY}/${APP_NAME}:${CONTAINER_MAIN_VERSION}-${GITHUB_REF//\//-}-${GITHUB_SHA}"
+
+          if docker manifest inspect $image > /dev/null ; then
+            echo "Image already exists not building."
+          else
+            docker buildx build --platform=linux/amd64 -t ${image} --push .
+          fi
+
+      - name: Buil and Push Helm Chart
+        working-directory: php-app/charts
+        env:
+            KUBE_CONFIG_DATA: ${{ env.KUBE_CONFIG_DATA }}
+        run: |
+          helm package ${CHART_NAME} \
+            --version=${CHART_MAIN_VERSION}-${GITHUB_SHA} 
+          
+          helm push ${CHART_NAME}-${CHART_MAIN_VERSION}-${GITHUB_SHA}.tgz \
+            oci://${OCI_REGISTRY}/${CHART_ORG}/
+
+      - name: helm deploy
+        uses: koslib/helm-eks-action@v1.29.0
+        env:
+            KUBE_CONFIG_DATA: ${{ env.KUBE_CONFIG_DATA }}
+        with:
+            command: |
+              helm upgrade --install ${GITHUB_REF//\//-}-app \
+                -f ${GITHUB_WORKSPACE}/values.yaml \
+                --version ${CHART_MAIN_VERSION}-${GITHUB_SHA} \
+                --install --wait \
+                --namespace ${NAMESPACE} \
+                --create-namespace \
+                --timeout=1h \
+                oci://${OCI_REGISTRY}/${CHART}

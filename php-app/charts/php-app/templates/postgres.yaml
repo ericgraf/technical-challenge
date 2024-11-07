@@ -1,0 +1,30 @@
+#https://github.com/zalando/postgres-operator/blob/acdb957d8ebf6ba784f72cd545af40def6973791/docs/reference/cluster_manifest.md
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: "{{ .Values.postgresql_db.name }}"
+spec:
+  teamId: "acid"
+  volume:
+    size: 1Gi
+  numberOfInstances: 2
+  users:
+    "{{ .Values.postgresql_db.user }}":  # database owner
+    - superuser
+    - createdb
+  databases:
+    app: "{{ .Values.postgresql_db.user }}"  # dbname: owner
+  postgresql:
+    version: "16"
+  patroni:
+    pg_hba: 
+    - "local   all             all                                   trust"
+    - "hostssl all             +zalandos    127.0.0.1/32       pam"
+    - "host    all             all                127.0.0.1/32       md5"
+    - "hostssl all             +zalandos    ::1/128            pam"
+    - "host    all             all                ::1/128            md5"
+    - "local   replication     standby                    trust"
+    - "hostssl replication     standby all                md5"
+    - "hostnossl all           all                all                md5"
+    - "hostssl all             +zalandos    all                pam"
+    - "hostssl all             all                all                md5"

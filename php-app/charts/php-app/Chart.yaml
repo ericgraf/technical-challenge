@@ -1,0 +1,8 @@
+apiVersion: v2
+name: php-app
+description: A Helm chart for php-app
+
+type: application
+
+version: 0.0.0
+appVersion: "0.0.0"
